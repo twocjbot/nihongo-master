@@ -1,8 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { PageShell } from '@/components/PageShell';
 import { vocabularyList } from '@/data/vocabulary';
+import { applySM2 } from '@/lib/sm2';
+import { storage } from '@/lib/storage';
 import { speakJapanese } from '@/lib/tts';
 
 export default function VocabularyPage() {
@@ -11,6 +14,8 @@ export default function VocabularyPage() {
   const [jlpt, setJlpt] = useState<'ALL'|'N5'|'N4'|'N3'>('ALL');
   const [cardIdx, setCardIdx] = useState(0);
   const [mode, setMode] = useState<'mc'|'typing'>('mc');
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 
   const words = useMemo(() => vocabularyList.filter((v) => {
     const matchQ = [v.word, v.reading, v.meaning.join(' ')].join(' ').toLowerCase().includes(q.toLowerCase());
@@ -20,6 +25,43 @@ export default function VocabularyPage() {
   }), [q, pos, jlpt]);
 
   const card = words[cardIdx % Math.max(1, words.length)];
+  const correctAnswer = card?.meaning[0] ?? '';
+
+  const options = useMemo(() => {
+    if (!card) return [];
+    const wrongPool = vocabularyList.filter((w) => w.id !== card.id && w.meaning[0] !== card.meaning[0]);
+    const shuffled = [...wrongPool].sort(() => Math.random() - 0.5).slice(0, 3).map((w) => w.meaning[0]);
+    return [card.meaning[0], ...shuffled].sort(() => Math.random() - 0.5);
+  }, [card]);
+
+  useEffect(() => {
+    setSelectedOption(null);
+    setIsCorrect(null);
+  }, [cardIdx, card?.id]);
+
+  async function handleAnswer(option: string) {
+    if (!card || selectedOption !== null) return;
+    const correct = option === card.meaning[0];
+    setSelectedOption(option);
+    setIsCorrect(correct);
+
+    const state = await storage.getState();
+    const cardState =
+      state.cards.find((c) => c.card_type === 'vocabulary' && c.card_id === card.id) ??
+      storage.createCard('vocabulary', card.id, state.profile.user_id);
+    const updatedCard = applySM2(cardState, correct ? 'Good' : 'Again');
+    const nextCards = state.cards.some((c) => c.id === cardState.id)
+      ? state.cards.map((c) => (c.id === cardState.id ? updatedCard : c))
+      : [...state.cards, updatedCard];
+    await storage.saveCards(nextCards);
+
+    if (correct) {
+      const xpResult = await storage.addXp(10);
+      await storage.addActivity({ text: 'Vocabulary quiz correct answer', xp: 10 });
+      toast.success('+10 XP');
+      if (xpResult.leveledUp) toast.success(`Level up! Level ${xpResult.level}`);
+    }
+  }
 
   return (
     <PageShell title="Vocabulary Studio">
@@ -57,12 +99,34 @@ export default function VocabularyPage() {
             <p className="text-white/70">{card.reading}</p>
             {mode === 'mc' ? (
               <div className="mt-3 grid gap-2">
-                {[card.meaning[0], 'dummy 1', 'dummy 2', 'dummy 3'].sort(() => Math.random() - 0.5).map((opt) => (
-                  <button key={opt} className="rounded border border-white/15 p-2 text-left">{opt}</button>
+                {options.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => { void handleAnswer(opt); }}
+                    disabled={selectedOption !== null}
+                    className={`rounded border p-2 text-left ${
+                      selectedOption === null
+                        ? 'border-white/15'
+                        : opt === correctAnswer
+                          ? 'border-emerald-400 bg-emerald-500/30'
+                          : opt === selectedOption
+                            ? 'border-red-400 bg-red-500/30'
+                            : 'border-white/15 opacity-70'
+                    }`}
+                  >
+                    {opt}
+                  </button>
                 ))}
+                {selectedOption !== null && (
+                  <p className={`text-sm ${isCorrect ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {isCorrect ? 'Correct!' : `Incorrect. Correct answer: ${correctAnswer}`}
+                  </p>
+                )}
               </div>
             ) : <input className="mt-3 w-full rounded bg-black/20 p-2" placeholder="Type the meaning..." />}
-            <button onClick={() => setCardIdx((i) => i + 1)} className="mt-3 rounded bg-primary px-3 py-2">Next</button>
+            {selectedOption !== null && (
+              <button onClick={() => setCardIdx((i) => i + 1)} className="mt-3 rounded bg-primary px-3 py-2">Next Card</button>
+            )}
           </div>
         )}
       </div>

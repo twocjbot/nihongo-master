@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { PageShell } from '@/components/PageShell';
@@ -13,11 +14,14 @@ import { detectAchievementUnlocks, levelFromXp, makeChallengeProgress, updateCha
 import { applySM2, isDue, ReviewRating } from '@/lib/sm2';
 import { AppState, storage } from '@/lib/storage';
 
-function seedQueue() {
+function seedQueue(userId: string) {
+  const seededKanji = kanjiList.filter((k) => k.jlpt === 'N5').slice(0, 7).map((k) => storage.createCard('kanji', k.id, userId));
+  const seededVocab = vocabularyList.filter((v) => v.jlpt === 'N5').slice(0, 7).map((v) => storage.createCard('vocabulary', v.id, userId));
+  const seededGrammar = grammarList.filter((g) => g.level === 'N5').slice(0, 6).map((g) => storage.createCard('grammar', g.id, userId));
   return [
-    storage.createCard('kanji', kanjiList[0].id),
-    storage.createCard('vocabulary', vocabularyList[0].id),
-    storage.createCard('grammar', grammarList[0].id)
+    ...seededKanji,
+    ...seededVocab,
+    ...seededGrammar
   ];
 }
 
@@ -34,9 +38,9 @@ function showCardDetails(state: AppState | null, cardId: string) {
 }
 
 export default function ReviewPage() {
+  const router = useRouter();
   const [appState, setAppState] = useState<AppState | null>(null);
   const [cards, setCards] = useState<AppState['cards']>([]);
-  const [index, setIndex] = useState(0);
   const [reviewed, setReviewed] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [start] = useState(Date.now());
@@ -44,23 +48,65 @@ export default function ReviewPage() {
   useEffect(() => {
     storage.getState().then(async (s) => {
       setAppState(s);
-      const seeded = s.cards.length ? s.cards : seedQueue();
+      const seeded = s.cards.length ? s.cards : seedQueue(s.profile.user_id);
       setCards(seeded);
       if (!s.cards.length) await storage.saveCards(seeded);
     });
   }, []);
 
   const queue = useMemo(() => cards.filter((c) => isDue(c)), [cards]);
-  const current = queue[index];
+  const current = queue[0];
 
   const showCard = showCardDetails(appState, current?.card_id ?? '');
-  const content = current
-    ? current.card_type === 'kanji'
-      ? kanjiList.find((k) => k.id === current.card_id)?.character
-      : current.card_type === 'vocabulary'
-        ? showCard?.word ?? vocabularyList.find((v) => v.id === current.card_id)?.word
-        : grammarList.find((g) => g.id === current.card_id)?.pattern
-    : null;
+  const kanji = current?.card_type === 'kanji' ? kanjiList.find((k) => k.id === current.card_id) : undefined;
+  const vocab = current?.card_type === 'vocabulary' ? vocabularyList.find((v) => v.id === current.card_id || v.word === current.card_id) : undefined;
+  const grammar = current?.card_type === 'grammar' ? grammarList.find((g) => g.id === current.card_id) : undefined;
+
+  const front =
+    current?.card_type === 'kanji'
+      ? <div className="text-center text-7xl font-jp">{kanji?.character ?? current.card_id}</div>
+      : current?.card_type === 'vocabulary'
+        ? (
+          <div className="text-center">
+            <p className="text-4xl font-jp">{showCard?.word ?? vocab?.word ?? current.card_id}</p>
+            <p className="mt-2 text-sm text-white/70">{vocab?.reading ?? 'Reading unavailable'}</p>
+          </div>
+        )
+        : current?.card_type === 'grammar'
+          ? (
+            <div className="text-center">
+              <p className="text-3xl font-semibold">{grammar?.pattern ?? current?.card_id}</p>
+              <p className="mt-2 text-sm text-white/70">{grammar?.meaning}</p>
+            </div>
+          )
+          : null;
+
+  const back =
+    current?.card_type === 'kanji'
+      ? (
+        <div className="text-center text-sm">
+          <p>Meaning: {kanji?.meaning.join(', ')}</p>
+          <p className="mt-1">Readings: {kanji?.onyomi.join(' / ')} | {kanji?.kunyomi.join(' / ')}</p>
+          <p className="mt-1">Example: {kanji?.examples[0]?.word} ({kanji?.examples[0]?.meaning})</p>
+        </div>
+      )
+      : current?.card_type === 'vocabulary'
+        ? (
+          <div className="text-center text-sm">
+            <p>Meaning: {vocab?.meaning.join(', ') ?? 'N/A'}</p>
+            <p className="mt-1">Example: {vocab?.examples[0]?.japanese ?? 'N/A'}</p>
+            <p className="mt-1 text-white/70">{vocab?.examples[0]?.english ?? 'No example available'}</p>
+          </div>
+        )
+        : current?.card_type === 'grammar'
+          ? (
+            <div className="text-center text-sm">
+              <p>Formation: {grammar?.formation}</p>
+              <p className="mt-1">Example: {grammar?.examples[0]?.japanese}</p>
+              <p className="mt-1 text-white/70">{grammar?.examples[0]?.english}</p>
+            </div>
+          )
+          : null;
 
   async function rate(r: ReviewRating) {
     if (!current) return;
@@ -72,7 +118,6 @@ export default function ReviewPage() {
     const correctNow = r === 'Good' || r === 'Easy' ? correct + 1 : correct;
     setReviewed(reviewedNow);
     setCorrect(correctNow);
-    if (index < queue.length - 1) setIndex((i) => i + 1);
 
     const state = await storage.getState();
     const prevLevel = levelFromXp(state.profile.xp);
@@ -146,6 +191,8 @@ export default function ReviewPage() {
         toast.success('Achievement unlocked: 🎯 Precision Strike');
       }
     }
+    toast.success('Review session complete');
+    router.push('/dashboard');
   }
 
   return (
@@ -160,8 +207,8 @@ export default function ReviewPage() {
         </div>
       ) : (
         <div className="mx-auto max-w-xl space-y-4">
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-white/70">{current.card_type.toUpperCase()} • card {index + 1} / {queue.length}</motion.p>
-          <CardFlip front={<div className="text-center text-5xl font-jp">{content}</div>} back={<div className="text-center">Think of meaning + reading</div>} />
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-white/70">{current.card_type.toUpperCase()} • due cards left: {queue.length}</motion.p>
+          <CardFlip front={front} back={back} />
           {showCard && (
             <div className="rounded border border-amber-200/20 bg-amber-200/10 p-2 text-sm text-amber-100">
               🎬 You learned this from: {showCard.showTitle}

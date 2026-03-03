@@ -1,6 +1,7 @@
 'use client';
 
 import { hasSupabase, supabase } from '@/lib/supabase';
+import { levelFromXp } from '@/lib/rewards';
 import {
   Activity,
   DailyChallengeProgress,
@@ -230,6 +231,15 @@ export const storage = {
   async exportData(): Promise<string> {
     const state = await this.getState();
     return JSON.stringify(state, null, 2);
+  },
+
+  async addXp(amount: number): Promise<{ xp: number; level: number; leveledUp: boolean }> {
+    const state = await this.getState();
+    const prevLevel = levelFromXp(state.profile.xp);
+    const xp = Math.max(0, state.profile.xp + amount);
+    const level = levelFromXp(xp);
+    await this.saveProfile({ ...state.profile, xp });
+    return { xp, level, leveledUp: level > prevLevel };
   },
 
   createCard(card_type: SRSCardType, card_id: string, user_id = GUEST_USER): SRSCard {
