@@ -61,7 +61,7 @@ export default function ProgressPage() {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="card p-4">Total study time: {Math.round(state.sessions.reduce((a,b)=>a+b.duration_ms,0)/60000)} min</div>
-        <div className="card p-4">Due now: {state.cards.filter(isDue).length}</div>
+        <div className="card p-4">Due now: {state.cards.filter((c) => isDue(c)).length}</div>
         <div className="card p-4">Badges: 7-day streak, 100 kanji, N5 Complete</div>
       </div>
 
