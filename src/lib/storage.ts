@@ -1,14 +1,27 @@
 'use client';
 
 import { hasSupabase, supabase } from '@/lib/supabase';
-import { Activity, SRSCard, SRSCardType, StudySession, UserProfile } from '@/lib/types';
+import {
+  Activity,
+  DailyChallengeProgress,
+  ImmersionShow,
+  SRSCard,
+  SRSCardType,
+  StudySession,
+  UserProfile
+} from '@/lib/types';
 import { uid } from '@/lib/utils';
 
-type AppState = {
+export type AppState = {
   profile: UserProfile;
   cards: SRSCard[];
   sessions: StudySession[];
   activities: Activity[];
+  immersionShows: ImmersionShow[];
+  unlockedAchievements: string[];
+  recentAchievementId?: string;
+  dailyChallenges?: DailyChallengeProgress;
+  highscores: Record<string, number>;
   onboardingDone: boolean;
   settings: {
     supabaseUrl?: string;
@@ -28,28 +41,45 @@ const defaultProfile: UserProfile = {
   streak_days: 0,
   daily_goal_minutes: 10,
   created_at: new Date().toISOString(),
-  name: 'Guest'
+  name: 'Guest',
+  prefers_immersion: false,
+  motivation: 'Anime'
 };
+
+function makeInitialState(): AppState {
+  return {
+    profile: defaultProfile,
+    cards: [],
+    sessions: [],
+    activities: [],
+    immersionShows: [],
+    unlockedAchievements: [],
+    recentAchievementId: undefined,
+    dailyChallenges: undefined,
+    highscores: {},
+    onboardingDone: false,
+    settings: {}
+  };
+}
 
 function readLocal(): AppState {
   if (typeof window === 'undefined') {
-    return { profile: defaultProfile, cards: [], sessions: [], activities: [], onboardingDone: false, settings: {} };
+    return makeInitialState();
   }
 
   const raw = window.localStorage.getItem(LS_KEY);
   if (!raw) {
-    const fresh: AppState = {
-      profile: defaultProfile,
-      cards: [],
-      sessions: [],
-      activities: [],
-      onboardingDone: false,
-      settings: {}
-    };
+    const fresh = makeInitialState();
     window.localStorage.setItem(LS_KEY, JSON.stringify(fresh));
     return fresh;
   }
-  return JSON.parse(raw) as AppState;
+  const parsed = JSON.parse(raw) as Partial<AppState>;
+  return {
+    ...makeInitialState(),
+    ...parsed,
+    profile: { ...defaultProfile, ...(parsed.profile ?? {}) },
+    highscores: parsed.highscores ?? (typeof window !== 'undefined' ? JSON.parse(window.localStorage.getItem('highscores') ?? '{}') : {})
+  };
 }
 
 function writeLocal(state: AppState) {
@@ -83,6 +113,11 @@ export const storage = {
       cards: (cardsRes.data as SRSCard[] | null) ?? [],
       sessions: (sessionsRes.data as StudySession[] | null) ?? [],
       activities: local.activities,
+      immersionShows: local.immersionShows,
+      unlockedAchievements: local.unlockedAchievements,
+      recentAchievementId: local.recentAchievementId,
+      dailyChallenges: local.dailyChallenges,
+      highscores: local.highscores,
       onboardingDone: local.onboardingDone,
       settings: local.settings
     };
@@ -133,6 +168,46 @@ export const storage = {
     writeLocal(state);
   },
 
+  async saveImmersionShows(shows: ImmersionShow[]): Promise<void> {
+    const state = readLocal();
+    state.immersionShows = shows;
+    writeLocal(state);
+  },
+
+  async upsertImmersionShow(show: ImmersionShow): Promise<void> {
+    const state = readLocal();
+    const next = state.immersionShows.some((s) => s.id === show.id)
+      ? state.immersionShows.map((s) => (s.id === show.id ? show : s))
+      : [show, ...state.immersionShows];
+    state.immersionShows = next;
+    writeLocal(state);
+  },
+
+  async saveAchievements(ids: string[], recentAchievementId?: string): Promise<void> {
+    const state = readLocal();
+    state.unlockedAchievements = ids;
+    state.recentAchievementId = recentAchievementId;
+    writeLocal(state);
+  },
+
+  async saveDailyChallenges(payload: DailyChallengeProgress): Promise<void> {
+    const state = readLocal();
+    state.dailyChallenges = payload;
+    writeLocal(state);
+  },
+
+  async saveHighScore(gameId: string, score: number): Promise<void> {
+    const state = readLocal();
+    const prev = state.highscores[gameId] ?? 0;
+    if (score > prev) {
+      state.highscores[gameId] = score;
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('highscores', JSON.stringify(state.highscores));
+      }
+      writeLocal(state);
+    }
+  },
+
   async setOnboardingDone(done: boolean): Promise<void> {
     const state = readLocal();
     state.onboardingDone = done;
@@ -148,6 +223,7 @@ export const storage = {
   async resetAll(): Promise<void> {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(LS_KEY);
+      window.localStorage.removeItem('highscores');
     }
   },
 

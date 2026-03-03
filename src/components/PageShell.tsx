@@ -11,6 +11,8 @@ const routes = [
   ['Grammar', '/grammar'],
   ['Reading', '/reading'],
   ['Listening', '/listening'],
+  ['Games', '/games'],
+  ['Immersion', '/immersion'],
   ['Review', '/review'],
   ['Progress', '/progress'],
   ['Settings', '/settings']
