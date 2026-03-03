@@ -64,19 +64,19 @@ export default function ReviewPage() {
 
   const front =
     current?.card_type === 'kanji'
-      ? <div className="text-center text-7xl font-jp">{kanji?.character ?? current.card_id}</div>
+      ? <div className="text-center"><p className="font-jp text-[clamp(7rem,16vw,14rem)] leading-none">{kanji?.character ?? current.card_id}</p><p className="mt-4 font-mono text-[11px] uppercase tracking-[0.2em] text-[#D4CFC7]">Tap to reveal</p></div>
       : current?.card_type === 'vocabulary'
         ? (
           <div className="text-center">
-            <p className="text-4xl font-jp">{showCard?.word ?? vocab?.word ?? current.card_id}</p>
-            <p className="mt-2 text-sm text-white/70">{vocab?.reading ?? 'Reading unavailable'}</p>
+            <p className="font-jp text-[clamp(4rem,12vw,8rem)] leading-none">{showCard?.word ?? vocab?.word ?? current.card_id}</p>
+            <p className="mt-4 text-sm text-[#FDFAF4]/70">{vocab?.reading ?? 'Reading unavailable'}</p>
           </div>
         )
         : current?.card_type === 'grammar'
           ? (
             <div className="text-center">
-              <p className="text-3xl font-semibold">{grammar?.pattern ?? current?.card_id}</p>
-              <p className="mt-2 text-sm text-white/70">{grammar?.meaning}</p>
+              <p className="font-shippori text-[clamp(2.4rem,8vw,5rem)]">{grammar?.pattern ?? current?.card_id}</p>
+              <p className="mt-3 text-sm text-[#FDFAF4]/70">{grammar?.meaning}</p>
             </div>
           )
           : null;
@@ -84,26 +84,35 @@ export default function ReviewPage() {
   const back =
     current?.card_type === 'kanji'
       ? (
-        <div className="text-center text-sm">
-          <p>Meaning: {kanji?.meaning.join(', ')}</p>
-          <p className="mt-1">Readings: {kanji?.onyomi.join(' / ')} | {kanji?.kunyomi.join(' / ')}</p>
-          <p className="mt-1">Example: {kanji?.examples[0]?.word} ({kanji?.examples[0]?.meaning})</p>
+        <div className="w-full max-w-3xl text-sm">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D4CFC7]">Kanji details</p>
+          <div className="mt-4 grid gap-2 border border-[#D4CFC7]/25 p-4">
+            <p><span className="text-[#D4CFC7]">Meaning</span>: {kanji?.meaning.join(', ')}</p>
+            <p><span className="text-[#D4CFC7]">Readings</span>: {kanji?.onyomi.join(' / ')} | {kanji?.kunyomi.join(' / ')}</p>
+            <p><span className="text-[#D4CFC7]">Example</span>: {kanji?.examples[0]?.word} ({kanji?.examples[0]?.meaning})</p>
+          </div>
         </div>
       )
       : current?.card_type === 'vocabulary'
         ? (
-          <div className="text-center text-sm">
-            <p>Meaning: {vocab?.meaning.join(', ') ?? 'N/A'}</p>
-            <p className="mt-1">Example: {vocab?.examples[0]?.japanese ?? 'N/A'}</p>
-            <p className="mt-1 text-white/70">{vocab?.examples[0]?.english ?? 'No example available'}</p>
+          <div className="w-full max-w-3xl text-sm">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D4CFC7]">Vocabulary details</p>
+            <div className="mt-4 grid gap-2 border border-[#D4CFC7]/25 p-4">
+              <p><span className="text-[#D4CFC7]">Meaning</span>: {vocab?.meaning.join(', ') ?? 'N/A'}</p>
+              <p><span className="text-[#D4CFC7]">Example</span>: {vocab?.examples[0]?.japanese ?? 'N/A'}</p>
+              <p className="text-[#FDFAF4]/70">{vocab?.examples[0]?.english ?? 'No example available'}</p>
+            </div>
           </div>
         )
         : current?.card_type === 'grammar'
           ? (
-            <div className="text-center text-sm">
-              <p>Formation: {grammar?.formation}</p>
-              <p className="mt-1">Example: {grammar?.examples[0]?.japanese}</p>
-              <p className="mt-1 text-white/70">{grammar?.examples[0]?.english}</p>
+            <div className="w-full max-w-3xl text-sm">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D4CFC7]">Grammar breakdown</p>
+              <div className="mt-4 grid gap-2 border border-[#D4CFC7]/25 p-4">
+                <p><span className="text-[#D4CFC7]">Formation</span>: {grammar?.formation}</p>
+                <p><span className="text-[#D4CFC7]">Example</span>: {grammar?.examples[0]?.japanese}</p>
+                <p className="text-[#FDFAF4]/70">{grammar?.examples[0]?.english}</p>
+              </div>
             </div>
           )
           : null;
@@ -199,22 +208,30 @@ export default function ReviewPage() {
     <PageShell title="SRS Review Session">
       {!current ? (
         <div className="card p-6">
-          <p className="text-xl font-semibold">Session Complete</p>
-          <p className="mt-2">Cards reviewed: {reviewed}</p>
-          <p>Accuracy: {reviewed ? Math.round((correct / reviewed) * 100) : 0}%</p>
-          <p>XP earned: {reviewed * 10}</p>
-          <button onClick={finishSession} className="mt-3 rounded bg-primary px-4 py-2">Save Summary</button>
+          <p className="font-shippori text-3xl">Session Complete</p>
+          <p className="mt-3 text-sm">Cards reviewed: {reviewed}</p>
+          <p className="text-sm">Accuracy: {reviewed ? Math.round((correct / reviewed) * 100) : 0}%</p>
+          <p className="text-sm">XP earned: {reviewed * 10}</p>
+          <button onClick={finishSession} className="mt-4 border border-[#C8391A] bg-[#C8391A] px-4 py-2 text-xs text-[#FDFAF4]">Save Summary</button>
         </div>
       ) : (
-        <div className="mx-auto max-w-xl space-y-4">
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-white/70">{current.card_type.toUpperCase()} • due cards left: {queue.length}</motion.p>
+        <div className="mx-auto w-full max-w-6xl space-y-3">
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#D4CFC7]">
+            {current.card_type} • due cards left: {queue.length}
+          </motion.p>
           <CardFlip front={front} back={back} />
           {showCard && (
-            <div className="rounded border border-amber-200/20 bg-amber-200/10 p-2 text-sm text-amber-100">
-              🎬 You learned this from: {showCard.showTitle}
+            <div className="border border-[#C8391A]/40 bg-[#C8391A]/10 p-2 text-xs text-[#FDFAF4]">
+              Learned from: {showCard.showTitle}
             </div>
           )}
-          <div className="grid grid-cols-4 gap-2">{(['Again', 'Hard', 'Good', 'Easy'] as ReviewRating[]).map((r) => <button key={r} onClick={() => rate(r)} className="rounded p-2 text-sm bg-white/10 hover:bg-primary/60">{r}</button>)}</div>
+          <div className="grid grid-cols-4 gap-2 pb-2">
+            {(['Again', 'Hard', 'Good', 'Easy'] as ReviewRating[]).map((r) => (
+              <button key={r} onClick={() => rate(r)} className="border border-[#D4CFC7]/30 p-3 text-xs hover:border-[#C8391A]/70">
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </PageShell>
